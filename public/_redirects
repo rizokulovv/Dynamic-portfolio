@@ -1,0 +1,3 @@
+# Netlify SPA fallback — every route (/, /works/:slug, unknown paths) serves index.html,
+# and React Router renders the right page (including the custom 404).
+/*    /index.html   200

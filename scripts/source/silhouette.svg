@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="760" viewBox="0 0 600 760">
+  <!--
+    Source artwork for the hero silhouette (developer bust: headphones, glasses, hoodie).
+    Traced into vector data by `pnpm trace` (scripts/trace.mjs).
+    To use your own portrait: export a high-contrast cut-out (dark subject on a white or
+    transparent background) and run `pnpm trace path/to/portrait.png`.
+  -->
+  <rect width="600" height="760" fill="#fff"/>
+  <g fill="#000">
+    <!-- hoodie + shoulders -->
+    <path d="M30 760 C34 610 96 520 214 486 C236 470 250 452 256 432 L344 432 C350 452 364 470 386 486 C504 520 566 610 570 760 Z"/>
+    <ellipse cx="300" cy="480" rx="134" ry="54"/>
+    <!-- neck -->
+    <path d="M254 344 L254 446 L346 446 L346 344 Z"/>
+    <!-- head + ears -->
+    <ellipse cx="300" cy="252" rx="108" ry="132"/>
+    <circle cx="192" cy="264" r="20"/>
+    <circle cx="408" cy="264" r="20"/>
+    <!-- hair volume + quiff -->
+    <path d="M190 236 C182 152 236 100 306 100 C374 100 420 142 416 226 C404 198 388 180 366 172 C334 186 278 182 238 164 C214 182 198 206 190 236 Z"/>
+    <path d="M244 126 C262 80 336 70 380 104 C352 98 318 104 296 120 Z"/>
+    <!-- headphone cups -->
+    <rect x="150" y="212" width="48" height="98" rx="22"/>
+    <rect x="402" y="212" width="48" height="98" rx="22"/>
+  </g>
+  <!-- headphone band -->
+  <path d="M174 238 C174 116 234 62 300 62 C366 62 426 116 426 238" fill="none" stroke="#000" stroke-width="20" stroke-linecap="round"/>
+  <!-- interior cut lines (glasses, neckline, hoodie strings) -->
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <circle cx="258" cy="262" r="30" stroke-width="8"/>
+    <circle cx="342" cy="262" r="30" stroke-width="8"/>
+    <path d="M288 258 Q300 250 312 258" stroke-width="7"/>
+    <path d="M230 502 Q300 586 370 502" stroke-width="9"/>
+    <path d="M280 546 L274 650" stroke-width="7"/>
+    <path d="M320 546 L326 650" stroke-width="7"/>
+  </g>
+</svg>
