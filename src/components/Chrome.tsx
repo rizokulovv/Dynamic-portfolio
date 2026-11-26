@@ -113,7 +113,7 @@ export function Chrome() {
           <ul>
             {site.nav.map((item) => (
               <li key={item.id} className="hud__link">
-                <a href={`/#${item.id}`} onClick={navigate(item.id)}>
+                <a href={`/#${item.id}`} onClick={navigate(item.id)} data-scramble-hover>
                   {item.label}
                 </a>
               </li>

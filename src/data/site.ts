@@ -78,7 +78,7 @@ export const site = {
     skip: 'Skip intro',
     frameLabel: 'Frame 01 — Hero',
     layerLabel: 'daler.svg',
-    figureAlt: 'Vector silhouette of a developer wearing headphones and glasses',
+    figureAlt: 'Vector silhouette of a developer in profile, wearing a hoodie with headphones around the neck',
     scrollHint: 'Scroll',
   },
 
@@ -214,6 +214,8 @@ export const site = {
     title: "LET'S BUILD SOMETHING.",
     animated: { lead: "Let's build something", words: ['users love.', 'that scales.', 'that ships.'] },
     role: 'Full-Stack Developer',
+    // Live clock in the contact grid. Change `timeZone` (IANA name) + `zone` if you move.
+    localTime: { label: 'Local time', timeZone: 'Asia/Tashkent', zone: 'GMT+5' },
     availability: 'Available for projects',
     email: 'rizoqulov.daler1@gmail.com',
     socials: [

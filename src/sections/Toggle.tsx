@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { site } from '../data/site'
 import { emit } from '../lib/bus'
+import { burstFrom } from '../lib/fx'
 import { gsap, prefersReducedMotion, scrollToY, type ScrollTrigger, useGsap } from '../lib/scroll'
 import { play } from '../lib/sound'
 import { CursorArrow } from './Hero'
@@ -91,6 +92,8 @@ export function Toggle() {
       gsap.set(thumb, { x: isOn ? travel() : 0 })
     } else {
       play('toggle')
+      // "Functional + beautiful": celebrate the switch with confetti from the track.
+      if (isOn) burstFrom(track, { count: 30, spread: 220, size: 11 })
       gsap.to(thumb, { x: isOn ? travel() : 0, duration: 0.9, ease: 'elastic.out(1, 0.5)', overwrite: 'auto' })
       gsap.fromTo(thumb, { scaleX: 1, scaleY: 1 }, { scaleX: 1.32, scaleY: 0.86, duration: 0.13, yoyo: true, repeat: 1, ease: 'power2.out' })
     }

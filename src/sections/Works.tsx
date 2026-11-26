@@ -1,8 +1,10 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Flip } from 'gsap/Flip'
+import { Chars } from '../components/Chars'
 import { site } from '../data/site'
 import { filters, kindLabels, works, type Work, type WorkFilter } from '../data/works'
+import { tilt } from '../lib/fx'
 import { gsap, prefersReducedMotion, ScrollTrigger, useGsap } from '../lib/scroll'
 import { play } from '../lib/sound'
 
@@ -25,6 +27,7 @@ function WorkCard({ work }: { work: Work }) {
           loading="lazy"
           decoding="async"
         />
+        <span className="work-card__glare" aria-hidden="true" />
         <span className="work-card__ring" aria-hidden="true">
           <i />
           <i />
@@ -98,13 +101,27 @@ export function Works() {
   useGsap(
     () => {
       if (prefersReducedMotion()) return
+      const cleanups: Array<() => void> = []
       const items = gsap.utils.toArray<HTMLElement>('.work-card')
       items.forEach((card) => {
+        const media = card.querySelector<HTMLElement>('.work-card__media')
         const img = card.querySelector('img')
-        gsap.fromTo(card, { y: 90, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1.1, ease: 'expo.out', scrollTrigger: { trigger: card, start: 'top 92%', once: true } })
-        if (img) gsap.fromTo(img, { scale: 1.16 }, { scale: 1, duration: 1.6, ease: 'expo.out', clearProps: 'transform', scrollTrigger: { trigger: card, start: 'top 92%', once: true } })
+        const text = card.querySelectorAll('.work-card__head, .work-card__desc, .work-card__foot')
+        if (!media) return
+        // Media opens from a rounded window while the image settles; copy follows.
+        gsap
+          .timeline({ scrollTrigger: { trigger: card, start: 'top 90%', once: true } })
+          .fromTo(media, { clipPath: 'inset(24% 14% 24% 14% round 48px)' }, { clipPath: 'inset(0% 0% 0% 0% round 28px)', duration: 1.5, ease: 'expo.inOut', clearProps: 'clipPath' })
+          .fromTo(img, { scale: 1.5 }, { scale: 1, duration: 2, ease: 'expo.out', clearProps: 'transform' }, 0)
+          .fromTo(text, { y: 44, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1, ease: 'power3.out', stagger: 0.08 }, 0.4)
+        cleanups.push(tilt(media, { max: 7, glare: media.querySelector<HTMLElement>('.work-card__glare') }))
       })
-      gsap.fromTo('.works__title-line > span', { yPercent: 105 }, { yPercent: 0, duration: 1, ease: 'expo.out', stagger: 0.08, scrollTrigger: { trigger: '.works__title', start: 'top 85%', once: true } })
+      gsap.fromTo(
+        '.works__title .char',
+        { yPercent: 115, rotationX: -95, transformOrigin: '50% 100%', transformPerspective: 600 },
+        { yPercent: 0, rotationX: 0, duration: 1.2, ease: 'expo.out', stagger: 0.035, scrollTrigger: { trigger: '.works__title', start: 'top 85%', once: true } },
+      )
+      return () => cleanups.forEach((fn) => fn())
     },
     root,
     [],
@@ -115,16 +132,17 @@ export function Works() {
       <header className="works__head">
         <p className="eyebrow">{w.eyebrow}</p>
         <h2 id="works-title" className="works__title">
+          <span className="visually-hidden">{w.title}</span>
           {w.title.split(' ').map((word) => (
             <span key={word} className="works__title-line">
-              <span>{word}</span>
+              <Chars text={word} sr={false} />
             </span>
           ))}
         </h2>
         <p className="works__intro">{w.intro}</p>
         <div className="filters" role="group" aria-label="Filter projects">
           {filters.map((f) => (
-            <button key={f.id} type="button" className="filter" aria-pressed={filter === f.id} onClick={() => choose(f.id)}>
+            <button key={f.id} type="button" className="filter" data-magnetic="0.22" aria-pressed={filter === f.id} onClick={() => choose(f.id)}>
               {f.label}
               <sup>{counts[f.id]}</sup>
             </button>

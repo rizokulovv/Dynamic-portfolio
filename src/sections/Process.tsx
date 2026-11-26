@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react'
+import { Chars } from '../components/Chars'
 import { site } from '../data/site'
 import { velocityBlur } from '../lib/motionblur'
 import { gsap, prefersReducedMotion, useGsap } from '../lib/scroll'
@@ -29,6 +30,12 @@ export function Process() {
       const N = cards.length
       const blur = velocityBlur(track, 'x', { max: 14, factor: 1 / 170 })
       let active = -1
+
+      gsap.fromTo(
+        q('.process__title .char'),
+        { yPercent: 110, rotationX: -90, autoAlpha: 0, transformOrigin: '50% 100%', transformPerspective: 500 },
+        { yPercent: 0, rotationX: 0, autoAlpha: 1, duration: 1, ease: 'expo.out', stagger: 0.022, scrollTrigger: { trigger: q('.process__title')[0], start: 'top 88%', once: true } },
+      )
 
       const xFor = (i: number) => section.clientWidth / 2 - (cards[i].offsetLeft + cards[i].offsetWidth / 2)
       const placePill = (i: number, animate: boolean) => {
@@ -84,7 +91,7 @@ export function Process() {
       <header className="process__head">
         <p className="eyebrow">{eyebrow}</p>
         <h2 id="process-title" className="process__title">
-          {title}
+          <Chars text={title} />
         </h2>
         <div className="process__pills" aria-hidden="true">
           <span className="process__pill-bg" />

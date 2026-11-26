@@ -121,6 +121,10 @@ pnpm trace                         # traces scripts/source/silhouette.svg
 pnpm trace path/to/portrait.png    # traces your own image
 ```
 
+`pnpm dev` and `pnpm build` run `scripts/trace.mjs --if-changed` first: the generated module records a hash of its
+source image, so replacing `scripts/source/silhouette.svg` re-traces automatically and the hero can never show a stale
+silhouette. (A custom image traced with `pnpm trace path/to/portrait.png` stays the tracked source.)
+
 The script resizes, flattens, grayscales and thresholds the image with **sharp**, traces it with **potrace**, rounds
 the coordinates, crops the viewBox and writes `src/data/silhouette.ts` (path data, anchor count, sampled anchors).
 For a photo, remove the background first so the subject is dark on white/transparent; tune `THRESHOLD` in

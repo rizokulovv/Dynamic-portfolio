@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node scripts/trace.mjs --if-changed && vite",
+    "build": "node scripts/trace.mjs --if-changed && tsc -b && vite build",
     "lint": "oxlint && tsc -b --noEmit",
     "preview": "vite preview",
     "trace": "node scripts/trace.mjs",

@@ -1,10 +1,11 @@
-import { useRef, type MouseEvent } from 'react'
+import { useId, useRef, type MouseEvent } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Chars } from '../components/Chars'
 import { silhouette } from '../data/silhouette'
 import { site, type SectionId } from '../data/site'
 import { consumeReplay, emit, on, setIntroState } from '../lib/bus'
 import { pathSampler, prepareStroke } from '../lib/draw'
-import { motionBlur } from '../lib/motionblur'
+import { burst, burstFrom, isFinePointer, scramble } from '../lib/fx'
 import { gsap, lockScroll, prefersReducedMotion, scrollToY, unlockScroll, useGoTo, useGsap } from '../lib/scroll'
 import { isGateOpen, play, whenGateResolved } from '../lib/sound'
 
@@ -14,6 +15,16 @@ let introSeen = false
 const COLORS = { night: '#07070b', paper: '#fafafc', ink: '#0b0b0f' }
 const HANDLES = ['tl', 't', 'tr', 'r', 'br', 'b', 'bl', 'l'] as const
 const SKIP_KEYS = new Set(['ArrowDown', 'PageDown', ' ', 'End', 'Escape'])
+const SPARKS = ['#6b4eff', '#8a73ff', '#c6ff3d']
+const GLITCH_OFF = '0px 0px 0px rgba(255,45,111,0), 0px 0px 0px rgba(45,226,255,0)'
+
+// Light sweep geometry: a skewed band that travels across the silhouette's viewBox.
+const [VB_X, VB_Y, VB_W, VB_H] = silhouette.viewBox.split(' ').map(Number)
+const SHEEN_SKEW = 18
+const SHEEN_W = VB_W * 0.32
+const SHEEN_SHIFT = Math.tan((SHEEN_SKEW * Math.PI) / 180) * (VB_Y + VB_H)
+const SHEEN_FROM = VB_X - SHEEN_W - 12
+const SHEEN_TO = VB_X + VB_W + SHEEN_SHIFT + 12
 
 export function CursorArrow() {
   return (
@@ -27,7 +38,9 @@ export function CursorArrow() {
  * Cinematic hero — a designer building an identity inside a design tool.
  *   Stage A (0 – 2.9 s)  dark canvas, guides, typed HELLO, canvas flip, selection frame
  *   Stage B (2.9 – 5.1 s) vector trace with pen cursor + live point counter, fill
- *   Stage C (5.1 – 7.6 s) figure moves right, I'M / DALER slide-in, dot pop, copy, CTAs
+ *   Stage C (5.1 – 7.6 s) figure moves right, I'M / DALER 3D letter reveal, dot burst, copy, CTAs
+ * After the intro the figure tilts with the pointer, a dot-grid spotlight
+ * follows the cursor and a light sweep crosses the silhouette every few seconds.
  * The final state is the CSS default, so reduced-motion users get it instantly.
  */
 export function Hero() {
@@ -35,6 +48,9 @@ export function Hero() {
   const root = useRef<HTMLElement>(null)
   const { hash } = useLocation()
   const goTo = useGoTo()
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const clipId = `${uid}-sil-clip`
+  const sheenId = `${uid}-sil-sheen`
 
   useGsap(
     () => {
@@ -48,17 +64,31 @@ export function Hero() {
       const anchors = q('.sil__anchor') as Element[]
       const figure = one('.hero__figure')
       const wrap = one('.hero__figure-wrap')
-      const name = one('.hero__name-text')
+      const svg = one<SVGSVGElement>('.sil')
+      const sheen = one<SVGRectElement>('.sil__sheen')
+      const nib = one<SVGPathElement>('.sil__pen-nib')
+      const aura = one('.hero__aura')
+      const spot = one('.hero__spot')
+      const content = one('.hero__content')
+      const nameChars = q('.hero__name .char') as HTMLElement[]
+      const nameIn = q('.hero__name .char__in') as HTMLElement[]
+      const dot = one('.hero__dot')
+      const roleText = one('.hero__role-text')
+      const helloText = one('.hello__text')
       const dims = one('.sel__dims')
       const box = one('.hello__box')
       const skipBtn = one<HTMLButtonElement>('.hero__skip')
       const reduce = prefersReducedMotion()
+      const fine = isFinePointer()
       let alive = true
       let playing = false
+      let sparkFrame = 0
 
       prepareStroke(stroke)
       const sample = pathSampler(stroke)
-      const nameBlur = motionBlur(name, 'x')
+      gsap.set(nameIn, { transformPerspective: 700, transformOrigin: '50% 100%' })
+      gsap.set(helloText, { textShadow: GLITCH_OFF })
+      gsap.set(sheen, { attr: { x: SHEEN_FROM } })
 
       // ── live renderers (also called directly when the timeline is skipped) ──
       const trace = { p: 0 }
@@ -68,6 +98,11 @@ export function Hero() {
         pen.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`)
         counter.textContent = String(Math.round(trace.p * silhouette.points))
         anchors.forEach((a, i) => a.classList.toggle('is-on', (i + 0.5) / anchors.length <= trace.p))
+        // Sparks fly off the pen nib while it draws.
+        if (playing && trace.p > 0.01 && trace.p < 0.99 && ++sparkFrame % 3 === 0) {
+          const r = nib.getBoundingClientRect()
+          burst(r.left, r.bottom, { count: 3, spread: 34, size: 5, gravity: 36, colors: SPARKS })
+        }
       }
       // Caret follows the last typed glyph (glyphs keep their width while hidden).
       const chars = q('.hello__char') as HTMLElement[]
@@ -117,6 +152,19 @@ export function Hero() {
           .call(moveCaret, [i + 1], at)
           .call(play, [i % 2 ? 'key2' : 'key'], at)
       })
+      // RGB-split glitch on HELLO right before the canvas flips to paper
+      tl.to(
+        helloText,
+        {
+          keyframes: [
+            { x: -14, skewX: 16, textShadow: '7px 0px 0px rgba(255,45,111,0.9), -7px 0px 0px rgba(45,226,255,0.9)', duration: 0.05 },
+            { x: 10, skewX: -12, textShadow: '-9px 0px 0px rgba(255,45,111,0.9), 9px 0px 0px rgba(45,226,255,0.9)', duration: 0.05 },
+            { x: -5, skewX: 5, textShadow: '4px 0px 0px rgba(255,45,111,0.8), -4px 0px 0px rgba(45,226,255,0.8)', duration: 0.05 },
+            { x: 0, skewX: 0, textShadow: GLITCH_OFF, duration: 0.08 },
+          ],
+        },
+        1.36,
+      )
       tl.fromTo(section, { '--hero-bg': COLORS.night, '--hero-fg': COLORS.paper }, { '--hero-bg': COLORS.paper, '--hero-fg': COLORS.ink, duration: 0.45, ease: 'power2.inOut' }, 1.55)
         .call(() => {
           section.dataset.hud = 'light'
@@ -139,6 +187,12 @@ export function Hero() {
         .call(play, ['swell', { volume: 0.7 }], 3.0)
         .fromTo(q('.sil__fill'), { fillOpacity: 0 }, { fillOpacity: 1, duration: 0.5, ease: 'power2.out' }, 4.55)
         .call(play, ['pop'], 4.6)
+        // Impact: the figure punches, a double shockwave rolls out, the aura blooms.
+        .fromTo(svg, { scale: 1 }, { scale: 1.045, duration: 0.13, ease: 'power2.out', yoyo: true, repeat: 1, transformOrigin: '50% 70%' }, 4.55)
+        .fromTo(q('.hero__shock i'), { autoAlpha: 0, scale: 0.15 }, { autoAlpha: 1, duration: 0.01 }, 4.55)
+        .to(q('.hero__shock i'), { scale: 2.9, autoAlpha: 0, duration: 1.35, ease: 'expo.out', stagger: 0.14 }, 4.56)
+        .fromTo(aura, { autoAlpha: 0, scale: 0.35 }, { autoAlpha: 1, scale: 1, duration: 1.6, ease: 'expo.out' }, 4.58)
+        .fromTo(sheen, { attr: { x: SHEEN_FROM } }, { attr: { x: SHEEN_TO }, duration: 1.2, ease: 'power2.inOut' }, 4.8)
         .to(pen, { autoAlpha: 0, duration: 0.25, immediateRender: false }, 4.7)
         .to(q('.sil__anchors'), { autoAlpha: 0, duration: 0.4, immediateRender: false }, 4.75)
         .to(q('.sil__hud'), { autoAlpha: 0, duration: 0.3, immediateRender: false }, 4.9)
@@ -147,16 +201,27 @@ export function Hero() {
       tl.fromTo(move, { t: 0 }, { t: 1, duration: 0.85, ease: 'expo.inOut', onUpdate: renderMove }, 5.05)
         .fromTo(q('.hero__pre > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.7, ease: 'expo.out' }, 5.35)
         .call(play, ['whoosh'], 5.5)
-        .fromTo(name, { xPercent: -45, autoAlpha: 0 }, { xPercent: 0, autoAlpha: 1, duration: 0.9, ease: 'expo.out' }, 5.55)
-        .fromTo(nameBlur, { amount: 44 }, { amount: 0, duration: 0.85, ease: 'power3.out' }, 5.55)
-        .fromTo(q('.hero__dot'), { scale: 0 }, { scale: 1, duration: 0.7, ease: 'elastic.out(1.1, 0.4)' }, 6.25)
+        .fromTo(
+          nameIn,
+          { yPercent: 125, rotationX: -105, autoAlpha: 0, filter: 'blur(18px)' },
+          { yPercent: 0, rotationX: 0, autoAlpha: 1, filter: 'blur(0px)', duration: 1.15, ease: 'expo.out', stagger: 0.075, clearProps: 'filter' },
+          5.5,
+        )
+        .fromTo(dot, { scale: 0 }, { scale: 1, duration: 0.7, ease: 'elastic.out(1.1, 0.4)' }, 6.25)
         .call(play, ['pop'], 6.25)
+        .call(() => burstFrom(dot, { count: 26, spread: 190, size: 10 }), [], 6.3)
         .fromTo(q('.hero__role-line'), { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: 'expo.inOut' }, 6.45)
-        .fromTo(q('.hero__role-text'), { autoAlpha: 0, x: -12 }, { autoAlpha: 1, x: 0, duration: 0.5 }, 6.6)
+        .fromTo(roleText, { autoAlpha: 0, x: -12 }, { autoAlpha: 1, x: 0, duration: 0.5 }, 6.6)
+        .add(scramble(roleText, { duration: 0.9, text: h.role }), 6.6)
         .fromTo(q('.hero__intro'), { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 6.8)
         .fromTo(q('.hero__ctas > *'), { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.08, ease: 'power3.out' }, 7.0)
         .fromTo(q('.hero__meta, .hero__frame, .hero__scroll'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, stagger: 0.05 }, 7.0)
         .fromTo(skipBtn, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.3, immediateRender: false }, 7.2)
+
+      // Idle light sweep, started once the intro is done.
+      const sheenIdle = gsap
+        .timeline({ paused: true, repeat: -1, repeatDelay: 5.5, delay: 2.5 })
+        .fromTo(sheen, { attr: { x: SHEEN_FROM } }, { attr: { x: SHEEN_TO }, duration: 1.5, ease: 'power2.inOut', immediateRender: false })
 
       // ── state machine ─────────────────────────────────────────────────────
       const setPlaying = (value: boolean) => {
@@ -172,6 +237,11 @@ export function Hero() {
         renderTrace()
         renderDims()
         renderMove()
+        // Skipping suppresses tween callbacks: restore anything a callback owns.
+        const roleNode = roleText.firstChild
+        if (roleNode instanceof Text) roleNode.nodeValue = h.role
+        gsap.set(helloText, { x: 0, skewX: 0, textShadow: GLITCH_OFF })
+        if (!reduce) sheenIdle.restart(true)
         section.dataset.hud = 'light'
         emit('hud:refresh')
         setPlaying(false)
@@ -192,6 +262,9 @@ export function Hero() {
         }
         if (fromReplay) scrollToY(0, { immediate: true })
         tl.pause(0)
+        sheenIdle.pause(0)
+        gsap.set(figure, { rotationX: 0, rotationY: 0 })
+        gsap.set(content, { x: 0 })
         moveCaret(0)
         trace.p = 0
         move.t = 0
@@ -236,8 +309,41 @@ export function Hero() {
       window.addEventListener('keydown', intent)
       window.addEventListener('resize', onResize)
 
-      // ── after the intro: gentle scroll parallax ───────────────────────────
+      // ── after the intro: pointer tilt, aura drift, dot-grid spotlight ──────
+      let onPointer: ((e: PointerEvent) => void) | null = null
+      if (fine && !reduce) {
+        gsap.set(figure, { transformPerspective: 1400 })
+        const rotY = gsap.quickTo(figure, 'rotationY', { duration: 1.1, ease: 'power3' })
+        const rotX = gsap.quickTo(figure, 'rotationX', { duration: 1.1, ease: 'power3' })
+        const auraX = gsap.quickTo(aura, 'x', { duration: 1.6, ease: 'power3' })
+        const auraY = gsap.quickTo(aura, 'y', { duration: 1.6, ease: 'power3' })
+        const textX = gsap.quickTo(content, 'x', { duration: 1.3, ease: 'power3' })
+        onPointer = (e: PointerEvent) => {
+          const b = section.getBoundingClientRect()
+          if (b.bottom <= 0) return
+          spot.style.setProperty('--mx', `${(e.clientX - b.left).toFixed(0)}px`)
+          spot.style.setProperty('--my', `${(e.clientY - b.top).toFixed(0)}px`)
+          spot.classList.add('is-on')
+          if (playing) return
+          const nx = (e.clientX - b.left) / b.width - 0.5
+          const ny = (e.clientY - b.top) / b.height - 0.5
+          rotY(nx * 14)
+          rotX(-ny * 9)
+          auraX(nx * 70)
+          auraY(ny * 50)
+          textX(-nx * 22)
+        }
+        window.addEventListener('pointermove', onPointer, { passive: true })
+      }
+
+      // ── after the intro: scroll parallax + letters scatter upward ─────────
       if (!reduce) {
+        gsap.to(nameChars, {
+          yPercent: (i: number) => -28 - i * 24,
+          rotation: (i: number) => (i - (nameChars.length - 1) / 2) * 6,
+          ease: 'none',
+          scrollTrigger: { trigger: section, start: 'top top', end: 'bottom top', scrub: 0.6 },
+        })
         gsap.to(wrap, { yPercent: 8, ease: 'none', scrollTrigger: { trigger: section, start: 'top top', end: 'bottom top', scrub: true } })
         gsap.to(q('.hero__content'), {
           yPercent: -12,
@@ -255,7 +361,7 @@ export function Hero() {
         window.removeEventListener('touchmove', intent)
         window.removeEventListener('keydown', intent)
         window.removeEventListener('resize', onResize)
-        nameBlur.destroy()
+        if (onPointer) window.removeEventListener('pointermove', onPointer)
         if (playing) {
           playing = false
           unlockScroll()
@@ -288,6 +394,8 @@ export function Hero() {
         </span>
       </div>
 
+      <div className="hero__spot" aria-hidden="true" />
+
       <div className="hero__hello" aria-hidden="true">
         <div className="hello__box">
           <span className="hello__text">
@@ -319,8 +427,30 @@ export function Hero() {
               <b className="sil__count">{silhouette.points}</b> / {silhouette.points} pts
             </span>
           </span>
+          <span className="hero__aura" aria-hidden="true" />
+          <span className="hero__shock" aria-hidden="true">
+            <i />
+            <i />
+          </span>
           <svg className="sil" viewBox={silhouette.viewBox} role="img" aria-label={h.figureAlt}>
+            <defs>
+              <clipPath id={clipId}>
+                <path d={silhouette.d} />
+              </clipPath>
+              <linearGradient id={sheenId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#b7a8ff" stopOpacity="0" />
+                <stop offset="0.45" stopColor="#b7a8ff" stopOpacity="0.38" />
+                <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.62" />
+                <stop offset="0.55" stopColor="#b7a8ff" stopOpacity="0.38" />
+                <stop offset="1" stopColor="#b7a8ff" stopOpacity="0" />
+              </linearGradient>
+            </defs>
             <path className="sil__fill" d={silhouette.d} />
+            <g clipPath={`url(#${clipId})`} aria-hidden="true">
+              <g transform={`skewX(-${SHEEN_SKEW})`}>
+                <rect className="sil__sheen" x={SHEEN_FROM} y={VB_Y} width={SHEEN_W} height={VB_H} fill={`url(#${sheenId})`} />
+              </g>
+            </g>
             <path className="sil__stroke" d={silhouette.d} />
             <g className="sil__anchors">
               {silhouette.anchors.map(([x, y], i) => (
@@ -354,7 +484,9 @@ export function Hero() {
             <span>{h.pretitle}</span>
           </span>
           <span className="hero__name">
-            <span className="hero__name-text">{h.title}</span>
+            <span className="hero__name-text">
+              <Chars text={h.title} nested />
+            </span>
             <span className="hero__dot" aria-hidden="true" />
           </span>
         </h1>
@@ -364,10 +496,10 @@ export function Hero() {
         </p>
         <p className="hero__intro">{h.intro}</p>
         <div className="hero__ctas">
-          <a href={`/#${h.primary.target}`} className="btn btn--primary" onClick={jump(h.primary.target)}>
+          <a href={`/#${h.primary.target}`} className="btn btn--primary" data-magnetic onClick={jump(h.primary.target)}>
             {h.primary.label} <span className="btn__arrow" aria-hidden="true">↗</span>
           </a>
-          <a href={`/#${h.secondary.target}`} className="btn btn--ghost" onClick={jump(h.secondary.target)}>
+          <a href={`/#${h.secondary.target}`} className="btn btn--ghost" data-magnetic onClick={jump(h.secondary.target)}>
             {h.secondary.label}
           </a>
         </div>

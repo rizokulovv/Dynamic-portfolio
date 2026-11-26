@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Chrome } from './components/Chrome'
 import { CommandPalette } from './components/CommandPalette'
 import { CursorTag } from './components/CursorTag'
+import { Effects } from './components/Effects'
 import { SoundGate } from './components/SoundGate'
 import { Transition } from './components/Transition'
 import { Home } from './pages/Home'
@@ -26,6 +27,7 @@ export default function App() {
       </Transition>
       <Chrome />
       <CursorTag />
+      <Effects />
       <CommandPalette />
       <SoundGate />
       <div className="grain" aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Chars } from '../components/Chars'
 import { site } from '../data/site'
 import { copyText, emit } from '../lib/bus'
 import { gsap, prefersReducedMotion, ScrollTrigger, scrollToSection, useGsap } from '../lib/scroll'
@@ -15,7 +16,26 @@ export function Contact() {
   const c = site.contact
   const root = useRef<HTMLElement>(null)
   const wordRef = useRef<HTMLSpanElement>(null)
+  const clockRef = useRef<HTMLSpanElement>(null)
   const [copied, setCopied] = useState(false)
+
+  // Live local clock — written to the DOM once a second, no re-renders.
+  useEffect(() => {
+    const el = clockRef.current
+    if (!el) return
+    let format: Intl.DateTimeFormat
+    try {
+      format = new Intl.DateTimeFormat('en-GB', { timeZone: c.localTime.timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    } catch {
+      format = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    }
+    const tick = () => {
+      el.textContent = format.format(new Date())
+    }
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [c.localTime.timeZone])
 
   useGsap(
     () => {
@@ -24,7 +44,17 @@ export function Contact() {
       if (!section || !word) return
       if (prefersReducedMotion()) return
 
-      gsap.fromTo('.contact__word > span', { yPercent: 108 }, { yPercent: 0, duration: 1.1, ease: 'expo.out', stagger: 0.07, scrollTrigger: { trigger: '.contact__title', start: 'top 82%', once: true } })
+      gsap.fromTo(
+        '.contact__title .char',
+        { yPercent: 118, rotationX: -100, transformOrigin: '50% 100%', transformPerspective: 600 },
+        { yPercent: 0, rotationX: 0, duration: 1.25, ease: 'expo.out', stagger: 0.032, scrollTrigger: { trigger: '.contact__title', start: 'top 82%', once: true } },
+      )
+      // Giant wordmark rises letter by letter as the page bottoms out.
+      gsap.fromTo(
+        '.contact__mark .char__in',
+        { yPercent: 108 },
+        { yPercent: 0, ease: 'none', stagger: 0.1, scrollTrigger: { trigger: '.contact__mark', start: 'top bottom', end: 'bottom bottom', scrub: 0.8 } },
+      )
       gsap.fromTo('.contact__reveal', { y: 40, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.9, ease: 'power3.out', stagger: 0.08, scrollTrigger: { trigger: '.contact__animated', start: 'top 88%', once: true } })
 
       // Typewriter loop through the rotating words; only runs while visible.
@@ -67,6 +97,11 @@ export function Contact() {
 
   return (
     <section ref={root} id="contact" className="contact" data-hud="dark" aria-labelledby="contact-title">
+      <div className="contact__aurora" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
       <p className="contact__badge">
         <span className="contact__pulse" aria-hidden="true" />
         {c.availability}
@@ -78,10 +113,7 @@ export function Contact() {
           const dot = last && wordText.endsWith('.')
           return (
             <span key={`${wordText}-${i}`} className="contact__word" aria-hidden="true">
-              <span>
-                {dot ? wordText.slice(0, -1) : wordText}
-                {dot && <span className="accent">.</span>}
-              </span>
+              <Chars text={dot ? wordText.slice(0, -1) : wordText} sr={false} tail={dot ? <span className="char accent">.</span> : undefined} />
             </span>
           )
         })}
@@ -104,6 +136,13 @@ export function Contact() {
         <div className="contact__cell contact__reveal">
           <span className="contact__label mono">Role</span>
           <span className="contact__value">{c.role}</span>
+          <span className="contact__label contact__label--next mono">{c.localTime.label}</span>
+          <span className="contact__value contact__clock">
+            <span ref={clockRef} className="mono">
+              --:--:--
+            </span>
+            <small className="mono">{c.localTime.zone}</small>
+          </span>
         </div>
         <div className="contact__cell contact__reveal">
           <span className="contact__label mono">Email</span>
@@ -130,13 +169,13 @@ export function Contact() {
       </div>
 
       <div className="contact__actions contact__reveal">
-        <a className="btn btn--primary btn--lg" href={`mailto:${c.email}`}>
+        <a className="btn btn--primary btn--lg" href={`mailto:${c.email}`} data-magnetic>
           {c.actions.email} <span className="btn__arrow" aria-hidden="true">↗</span>
         </a>
-        <button type="button" className="btn btn--ghost-dark btn--lg" onClick={onCopy}>
+        <button type="button" className="btn btn--ghost-dark btn--lg" onClick={onCopy} data-magnetic>
           {copied ? c.actions.copied : c.actions.copy}
         </button>
-        <button type="button" className="btn btn--ghost-dark btn--lg" onClick={() => scrollToSection('top')}>
+        <button type="button" className="btn btn--ghost-dark btn--lg" onClick={() => scrollToSection('top')} data-magnetic>
           {c.actions.top} <span aria-hidden="true">↑</span>
         </button>
       </div>
@@ -147,6 +186,10 @@ export function Contact() {
         </span>
         <span>{c.footer}</span>
       </footer>
+
+      <div className="contact__mark" aria-hidden="true">
+        <Chars text={site.brand} nested sr={false} />
+      </div>
     </section>
   )
 }

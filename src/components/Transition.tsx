@@ -12,9 +12,12 @@ function labelFor(pathname: string): string {
   return site.notFound.code
 }
 
+const COLS = 5
+
 /**
- * Route transition: a night panel wipes up, the next route mounts underneath
- * (scroll reset + ScrollTrigger refresh), then the panel wipes away.
+ * Route transition: five night shutters rise in a stagger, the next route
+ * mounts underneath (scroll reset + ScrollTrigger refresh), then the shutters
+ * continue upward and away.
  */
 export function Transition({ children }: { children: (location: Location) => ReactNode }) {
   const location = useLocation()
@@ -43,15 +46,18 @@ export function Transition({ children }: { children: (location: Location) => Rea
     const overlay = overlayRef.current
     const panel = panelRef.current
     if (!overlay || !panel || !labelRef.current) return
+    const cols = overlay.querySelectorAll('.transition__col')
     labelRef.current.textContent = labelFor(location.pathname)
     lockScroll()
     play('whoosh', { volume: 0.55 })
-    gsap.killTweensOf([panel, barRef.current])
+    gsap.killTweensOf([panel, barRef.current, labelRef.current, ...cols])
     gsap
       .timeline()
       .set(overlay, { visibility: 'visible' })
-      .fromTo(panel, { yPercent: 100 }, { yPercent: 0, duration: 0.6, ease: 'expo.inOut' })
-      .fromTo(barRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: 'power2.inOut' }, 0.1)
+      .fromTo(cols, { y: 0, yPercent: 100 }, { yPercent: 0, duration: 0.62, ease: 'expo.inOut', stagger: 0.045 })
+      .fromTo(panel, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 }, 0.3)
+      .fromTo(labelRef.current, { yPercent: 70, autoAlpha: 0 }, { yPercent: 0, autoAlpha: 1, duration: 0.55, ease: 'expo.out' }, 0.34)
+      .fromTo(barRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: 'power2.inOut' }, 0.32)
       .add(() => {
         reveal.current = 'animated'
         setShown(location)
@@ -69,21 +75,23 @@ export function Transition({ children }: { children: (location: Location) => Rea
     ScrollTrigger.refresh()
     if (mode === 'instant') return
     unlockScroll()
-    gsap.to(panelRef.current, {
-      yPercent: -100,
-      duration: 0.75,
-      ease: 'expo.inOut',
-      delay: 0.08,
-      onComplete: () => {
-        gsap.set(overlayRef.current, { visibility: 'hidden' })
-      },
-    })
+    const cols = overlayRef.current?.querySelectorAll('.transition__col') ?? []
+    gsap
+      .timeline({ delay: 0.08, onComplete: () => void gsap.set(overlayRef.current, { visibility: 'hidden' }) })
+      .to(panelRef.current, { autoAlpha: 0, y: -40, duration: 0.35, ease: 'power2.in' })
+      .to(cols, { yPercent: -100, duration: 0.8, ease: 'expo.inOut', stagger: 0.05 }, 0.12)
+      .set(panelRef.current, { y: 0 })
   }, [shown])
 
   return (
     <>
       {children(shown)}
       <div ref={overlayRef} className="transition" aria-hidden="true">
+        <div className="transition__cols">
+          {Array.from({ length: COLS }, (_, i) => (
+            <i key={i} className="transition__col" />
+          ))}
+        </div>
         <div ref={panelRef} className="transition__panel">
           <span className="transition__meta">Loading frame</span>
           <span ref={labelRef} className="transition__label" />
